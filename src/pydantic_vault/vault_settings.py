@@ -1,14 +1,16 @@
 import json.decoder
 import logging
 import os
+import typing
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, Union, cast
+from typing import Any, Dict, Generic, Optional, Tuple, Type, TypeVar, Union, cast
 
 from hvac import Client as HvacClient
 from hvac.exceptions import VaultError
-from pydantic import SecretStr
+from pydantic import GetCoreSchemaHandler, SecretStr
 from pydantic.fields import FieldInfo
+from pydantic_core import CoreSchema, core_schema
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 from pydantic_settings.sources import SettingsError, _annotation_is_complex
 
@@ -21,6 +23,8 @@ from pydantic_vault.entities import (
 
 logger = logging.getLogger("pydantic-vault")
 logger.addHandler(logging.NullHandler())
+
+T = TypeVar("T")
 
 
 class PydanticVaultException(BaseException):
@@ -345,3 +349,100 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
         elif callable(field_info.json_schema_extra):
             field_info.json_schema_extra(extra)
         return extra
+
+
+class StoredSecret(Generic[T]):
+    """
+    Generic type of secrets that can be saved to disk. Should be used with DataSaver validator.
+
+    Example:
+        ```py
+        from pathlib import Path
+        from typing import Annotated
+
+        from pydantic import BaseModel, AfterValidator
+        from pydantic_vault import StoredSecret, DataSaver
+
+        class Settings(BaseModel):
+            google_ads_service_account: Annotated[
+                StoredSecret[str],
+                AfterValidator(DataSaver(Path('service-account.json'))),
+            ]
+
+        ```
+    """
+
+    def __init__(self, value: T) -> None:
+        self.value: T = value
+        self.path: Optional[Path] = None
+        self.encoding: str = "utf-8"
+        self.silent_mode: bool = False
+
+    def get_value(self) -> T:
+        return self.value
+
+    def save_to_disk(self) -> None:
+        if self.path is None:
+            msg = "Cannot save secret to disk. Path is not set."
+            logger.error(msg)
+            if not self.silent_mode:
+                raise ValueError(msg)
+            return
+
+        try:
+            data = (
+                json.dumps(self.value)
+                if not isinstance(self.value, str)
+                else self.value
+            )
+            self.path.write_text(data, encoding=self.encoding)
+        except Exception:
+            logger.error("Failed to save secret to disk: %s", self.path)
+            if not self.silent_mode:
+                raise
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        secret_type = next(iter(typing.get_args(source_type)))
+        return core_schema.no_info_after_validator_function(cls, handler(secret_type))
+
+    def __repr__(self) -> str:
+        return f"StoredSecret({self.value!r}, path={self.path!r}, encoding={self.encoding!r})"
+
+    def __str__(self) -> str:
+        return f"StoredSecret({self.value!s}, path={self.path!s}, encoding={self.encoding!s})"
+
+
+class DataSaver:
+    """
+    Validator that injects settings to the StoredSecret object and saves it to disk.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        encoding: Optional[str] = None,
+        silent_mode: Optional[bool] = None,
+    ) -> None:
+        self.path = path
+        self.encoding = encoding
+        self.silent_mode = silent_mode
+
+    def __call__(self, local_secret: StoredSecret[T]) -> StoredSecret[T]:
+        if not isinstance(local_secret, StoredSecret):
+            raise ValueError(
+                "DataSaver can be used only with object type of StoredSecret"
+            )
+
+        self._inject_settings(local_secret)
+        local_secret.save_to_disk()
+        return local_secret
+
+    def _inject_settings(self, local_secret: StoredSecret[T]) -> None:
+        local_secret.path = self.path
+        if self.encoding is not None:
+            local_secret.encoding = self.encoding
+        if self.silent_mode is not None:
+            local_secret.silent_mode = self.silent_mode
