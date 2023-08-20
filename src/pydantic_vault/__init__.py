@@ -1,5 +1,10 @@
 __version__ = "1.0.0"
 
-from .vault_settings import VaultParameterError, VaultSettingsSource, StoredSecret, DataSaver
+from .vault_settings import (
+    FileInfo,
+    StoredSecret,
+    VaultParameterError,
+    VaultSettingsSource,
+)
 
-__all__ = ["VaultSettingsSource", "VaultParameterError", "StoredSecret", "DataSaver"]
+__all__ = ["VaultSettingsSource", "VaultParameterError", "StoredSecret", "FileInfo"]

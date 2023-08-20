@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import json.decoder
 import logging
 import os
 import typing
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Generic, Optional, Tuple, Type, TypeVar, Union, cast
 
@@ -240,7 +243,7 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
     def get_field_value(
         self, field: FieldInfo, field_name: str
     ) -> Tuple[Any, str, bool]:
-        raise NotImplemented
+        raise NotImplemented  # pragma: no cover
 
     def __call__(self) -> Dict[str, Any]:
         data: Dict[str, Any] = {}
@@ -353,41 +356,40 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
 
 class StoredSecret(Generic[T]):
     """
-    Generic type of secrets that can be saved to disk. Should be used with DataSaver validator.
+    Generic type of secrets that can be saved to disk. Should be used with FileInfo validator.
 
     Example:
         ```py
         from pathlib import Path
-        from typing import Annotated
 
         from pydantic import BaseModel, AfterValidator
-        from pydantic_vault import StoredSecret, DataSaver
+        from pydantic_vault import StoredSecret, FileInfo
+        from typing_extensions import Annotated
 
         class Settings(BaseModel):
             google_ads_service_account: Annotated[
                 StoredSecret[str],
-                AfterValidator(DataSaver(Path('service-account.json'))),
+                AfterValidator(FileInfo(Path('service-account.json'))),
             ]
-
         ```
     """
 
     def __init__(self, value: T) -> None:
         self.value: T = value
-        self.path: Optional[Path] = None
-        self.encoding: str = "utf-8"
-        self.silent_mode: bool = False
+        self.file_info: FileInfo | None = None
+
+    def set_file_info(self, path: FileInfo) -> None:
+        self.file_info = path
+
+    def get_file_info(self) -> Optional[FileInfo]:
+        return self.file_info
 
     def get_value(self) -> T:
         return self.value
 
     def save_to_disk(self) -> None:
-        if self.path is None:
-            msg = "Cannot save secret to disk. Path is not set."
-            logger.error(msg)
-            if not self.silent_mode:
-                raise ValueError(msg)
-            return
+        if self.file_info is None:
+            raise ValueError("Cannot save secret to disk. SecretPath is not set.")
 
         try:
             data = (
@@ -395,10 +397,12 @@ class StoredSecret(Generic[T]):
                 if not isinstance(self.value, str)
                 else self.value
             )
-            self.path.write_text(data, encoding=self.encoding)
+            self.file_info.path.write_text(data, encoding=self.file_info.encoding)
         except Exception:
-            logger.error("Failed to save secret to disk: %s", self.path)
-            if not self.silent_mode:
+            logger.error(
+                "Failed to save secret to disk: %s", self.file_info.path, exc_info=True
+            )
+            if self.file_info.raise_error:
                 raise
 
     @classmethod
@@ -409,40 +413,29 @@ class StoredSecret(Generic[T]):
         return core_schema.no_info_after_validator_function(cls, handler(secret_type))
 
     def __repr__(self) -> str:
-        return f"StoredSecret({self.value!r}, path={self.path!r}, encoding={self.encoding!r})"
+        return self._display()
 
     def __str__(self) -> str:
-        return f"StoredSecret({self.value!s}, path={self.path!s}, encoding={self.encoding!s})"
+        return self._display()
+
+    def _display(self) -> str:
+        path = self.file_info.path if self.file_info is not None else None
+        encoding = self.file_info.encoding if self.file_info is not None else None
+        return f"StoredSecret({self.value}, path={path}, encoding={encoding})"
 
 
-class DataSaver:
-    """
-    Validator that injects settings to the StoredSecret object and saves it to disk.
-    """
+@dataclass
+class FileInfo:
+    path: Path
+    encoding: str = "utf-8"
+    raise_error: bool = True
 
-    def __init__(
-        self,
-        path: Path,
-        encoding: Optional[str] = None,
-        silent_mode: Optional[bool] = None,
-    ) -> None:
-        self.path = path
-        self.encoding = encoding
-        self.silent_mode = silent_mode
-
-    def __call__(self, local_secret: StoredSecret[T]) -> StoredSecret[T]:
-        if not isinstance(local_secret, StoredSecret):
-            raise ValueError(
-                "DataSaver can be used only with object type of StoredSecret"
+    def __call__(self, stored_secret: StoredSecret[T]) -> StoredSecret[T]:
+        if not isinstance(stored_secret, StoredSecret):
+            raise TypeError(
+                "FileInfo can be used only with object type of StoredSecret"
             )
 
-        self._inject_settings(local_secret)
-        local_secret.save_to_disk()
-        return local_secret
-
-    def _inject_settings(self, local_secret: StoredSecret[T]) -> None:
-        local_secret.path = self.path
-        if self.encoding is not None:
-            local_secret.encoding = self.encoding
-        if self.silent_mode is not None:
-            local_secret.silent_mode = self.silent_mode
+        stored_secret.set_file_info(self)
+        stored_secret.save_to_disk()
+        return stored_secret
