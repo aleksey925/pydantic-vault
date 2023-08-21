@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2023-08-21
+
+### Added
+- Added a special `StoredSecret` type and a `FileInfo` validator for saving secrets to disk
+
+### Removed
+- Dropped support for python 3.7
+
+
 ## [1.0.0] - 2023-08-12
 
 ### Added
