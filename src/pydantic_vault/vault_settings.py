@@ -250,6 +250,25 @@ def _extract_kubernetes(settings: Type[BaseSettings]) -> Optional[Kubernetes]:
     return None
 
 
+def _get_path_key_from_env(field_name: str) -> tuple[Optional[str], Optional[str]]:
+    """Return path and key from environment variables if they exist."""
+    path: Optional[str]
+    key: Optional[str]
+    if path_key := os.getenv(f"{field_name}_VAULT_PATH_KEY".upper()):
+        path, key = os.path.split(path_key)
+        if not path or not key:
+            logger.debug(
+                f"Found environment variable {f'{field_name}_VAULT_PATH_KEY'.upper()}, "
+                f"but it doesn't appear to hold both a path and a key."
+            )
+            return None, None
+        return path, key
+
+    path = os.getenv(f"{field_name}_VAULT_PATH".upper())
+    key = os.getenv(f"{field_name}_VAULT_KEY".upper())
+    return path, key
+
+
 class VaultSettingsSource(PydanticBaseSettingsSource):
     def __init__(self, settings_cls: Type[BaseSettings]) -> None:
         super().__init__(settings_cls)
@@ -274,8 +293,12 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
             vault_secret_key: Optional[str] = extra.get("vault_secret_key")
 
             if vault_secret_path is None:
-                logger.debug(f"Skipping field {field_name}")
-                continue
+                env_path, env_key = _get_path_key_from_env(field_name)
+                if not env_path:
+                    logger.debug(f"Skipping field {field_name}")
+                    continue
+                vault_secret_path = env_path
+                vault_secret_key = env_key or vault_secret_key
 
             try:
                 vault_val: Union[str, Dict[str, Any]] = self._get_vault_secret(

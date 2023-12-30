@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
@@ -176,6 +177,92 @@ def test_get_secret_without_key() -> None:
         kvv2_secret: Dict[str, Any] = Field(  # type: ignore
             {}, vault_secret_path="secret/data/first_level_key"
         )
+
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_token": SecretStr("fake-token"),
+        }
+
+    vault_settings_dict = VaultSettingsSource(Settings)()
+    assert vault_settings_dict == {
+        "db_credentials": {"username": "db_username", "password": "db_password"},
+        "kvv2_secret": {
+            "username": "kvv2_user",
+            "password": "kvv2_password",
+            "complex_value": {
+                "inner": "value",
+                "int_key": 12,
+                "list_key": ["first", "second", "third"],
+            },
+            "json_in_string": '{"key": "value", "list": [1, 2, 3]}',
+        },
+    }
+
+
+def test_get_secret_with_path_key_env_var(mocker: MockerFixture) -> None:
+    mocker.patch.dict(
+        os.environ,
+        {
+            "USERNAME_VAULT_PATH_KEY": "secret/data/first_level_key/username",
+            "PASSWORD_VAULT_PATH_KEY": "secret/data/first_level_key/password",
+        },
+    )
+
+    class Settings(BaseSettings):
+        username: str = Field("doesn't matter")
+        password: SecretStr
+
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_token": SecretStr("fake-token"),
+        }
+
+    vault_settings_dict = VaultSettingsSource(Settings)()
+    assert vault_settings_dict == {"username": "kvv2_user", "password": "kvv2_password"}
+
+
+def test_get_secret_with_path_and_key_env_vars(mocker: MockerFixture) -> None:
+    mocker.patch.dict(
+        os.environ,
+        {
+            "USERNAME_VAULT_PATH": "secret/data/first_level_key",
+            "USERNAME_VAULT_KEY": "username",
+            "PASSWORD_VAULT_PATH": "secret/data/first_level_key",
+            "PASSWORD_VAULT_KEY": "password",
+        },
+    )
+
+    class Settings(BaseSettings):
+        username: str = Field("doesn't matter")
+        password: SecretStr
+
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_token": SecretStr("fake-token"),
+        }
+
+    vault_settings_dict = VaultSettingsSource(Settings)()
+    assert vault_settings_dict == {"username": "kvv2_user", "password": "kvv2_password"}
+
+
+def test_get_secret_with_path_env_var_only(mocker: MockerFixture) -> None:
+    mocker.patch.dict(
+        os.environ,
+        {
+            "DB_CREDENTIALS_VAULT_PATH": "database/creds/db_role",
+            "KVV2_SECRET_VAULT_PATH": "secret/data/first_level_key",
+        },
+    )
+
+    class DbCredentials(BaseModel):
+        username: str
+        password: SecretStr
+
+    class Settings(BaseSettings):
+        db_credentials: DbCredentials = Field(  # type: ignore
+            {"username": "doesn't matter", "password": "doesn't matter"},
+        )
+        kvv2_secret: Dict[str, Any]
 
         model_config = {  # type: ignore
             "vault_url": "https://vault.tld",

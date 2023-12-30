@@ -18,6 +18,7 @@ authentication for example).
 - [Getting started](#getting-started)
 - [Documentation](#documentation)
   * [`Field` additional parameters](#field-additional-parameters)
+  * [Providing the path and key through environment variables](#providing-the-path-and-key-through-environment-variables)
   * [Configuration](#configuration)
   * [Authentication](#authentication)
     + [Approle](#approle)
@@ -27,6 +28,7 @@ authentication for example).
 - [Logging](#logging)
 - [Examples](#examples)
   * [Retrieve a secret from a KV v2 secret engine](#retrieve-a-secret-from-a-kv-v2-secret-engine)
+  * [Retrieve a secret with the path and key provided through environment variables](#retrieve-a-secret-with-the-path-and-key-provided-through-environment-variables)
   * [Retrieve a whole secret at once](#retrieve-a-whole-secret-at-once)
   * [Retrieve a secret from a KV v1 secret engine](#retrieve-a-secret-from-a-kv-v1-secret-engine)
   * [Retrieve a secret from a database secret engine](#retrieve-a-secret-from-a-database-secret-engine)
@@ -137,6 +139,17 @@ password: SecretStr = Field(
     ..., vault_secret_path="secret/data/database/prod", vault_secret_key="password"
 )
 ```
+
+### Providing the path and key through environment variables
+
+As an alternative to passing the path and key as arguments to `Field`, they can be provided through environment variables.
+Removing the coupling between code and Hashicorp Vault structure like this can be useful when code is shared between multiple users or teams who don't share the same Vault instance or engine, for example.
+
+pydantic-settings-vault searches for environment variables beginning with the capitalized field name and ending in `_VAULT_PATH_KEY`, `_VAULT_PATH` or `_VAULT_KEY`.
+For variables ending in `..._VAULT_PATH_KEY`, everything up to the last "/" is treated as the path, and the segment following it as the key. It's important to note that if a key name in Hashicorp Vault includes a forward slash, this method of is not suitable.
+
+If `..._VAULT_PATH` and `..._VAULT_KEY` are found, they are used exactly as they would if they were provided as arguments to `Field`.
+If `..._VAULT_PATH` is present while `..._VAULT_KEY` is not, the whole secret content will be loaded as a dict.
 
 ### Configuration
 
@@ -463,10 +476,40 @@ settings.username  # "root"
 settings.password.get_secret_value()  # "a_v3ry_s3cur3_p4ssw0rd"
 ```
 
+### Retrieve a secret with the path and key provided through environment variables 
+
+Suppose your secret is at `my-api/prod` and looks like this:
+```
+Key             Value
+---             -----
+root_user       root
+root_password   a_v3ry_s3cur3_p4ssw0rd
+```
+
+Assuming KV v2, we could set the following environment variables:
+```bash
+USERNAME_VAULT_PATH_KEY=secret/data/my-api/prod/root_user  # Here, both path and key are provided in the same variable 
+
+PASSWORD_VAULT_PATH=secret/data/my-api/prod    # Here, the path and the key are
+PASSWORD_VAULT_KEY=root_password               # provided in separate variables 
+```
+
+Our settings class could then be simplified to:
+```python
+class Settings(BaseSettings):
+    username: str
+    password: SecretStr
+
+
+settings = Settings()
+
+settings.username  # "root"
+settings.password.get_secret_value()  # "a_v3ry_s3cur3_p4ssw0rd"
+```
+
 ### Retrieve a whole secret at once
 
-If you omit the `vault_secret_key` parameter in your `Field`, pydantic-settings-vault will load
-the whole secret in your class field.
+If you omit the `vault_secret_key` parameter in your `Field` (or you set the `..._VAULT_PATH` environment variable but not the `_VAULT_KEY` variable), pydantic-settings-vault will load the whole secret in your class field.
 
 With the same secret as before, located at `my-api/prod` and with this data:
 ```
