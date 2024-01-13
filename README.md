@@ -68,12 +68,18 @@ class Settings(BaseSettings):
     # The `vault_secret_path` is the full path (with mount point included) to the secret
     # The `vault_secret_key` is the specific key to extract from a secret
     username: str = Field(
-        ..., vault_secret_path="secret/data/path/to/secret", vault_secret_key="my_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "secret/data/path/to/secret",
+            "vault_secret_key": "my_user",
+        },
     )
     password: SecretStr = Field(
         ...,
-        vault_secret_path="secret/data/path/to/secret",
-        vault_secret_key="my_password",
+        json_schema_extra={
+            "vault_secret_path": "secret/data/path/to/secret",
+            "vault_secret_key": "my_password",
+        },
     )
 
     model_config = {
@@ -134,7 +140,11 @@ For example, if you create a secret `database/prod` with a key `password` and a 
 
 ```python
 password: SecretStr = Field(
-    ..., vault_secret_path="secret/data/database/prod", vault_secret_key="password"
+    ...,
+    json_schema_extra={
+        "vault_secret_path": "secret/data/database/prod",
+        "vault_secret_key": "password",
+    },
 )
 ```
 
@@ -188,10 +198,18 @@ from pydantic_vault import VaultSettingsSource
 
 class Settings(BaseSettings):
     username: str = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_user",
+        },
     )
     password: SecretStr = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_password"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_password",
+        },
     )
 
     model_config = {
@@ -237,10 +255,18 @@ from pydantic_vault import VaultSettingsSource
 
 class Settings(BaseSettings):
     username: str = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_user",
+        },
     )
     password: SecretStr = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_password"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_password",
+        },
     )
 
     model_config = {
@@ -284,10 +310,18 @@ from pydantic_vault import VaultSettingsSource
 
 class Settings(BaseSettings):
     username: str = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_user",
+        },
     )
     password: SecretStr = Field(
-        ..., vault_secret_path="path/to/secret", vault_secret_key="my_password"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_password",
+        },
     )
 
     model_config = {
@@ -405,7 +439,11 @@ class Settings(BaseSettings):
     ###############################################
     # THIS PART CHANGES IN THE DIFFERENT EXAMPLES #
     username: str = Field(
-        ..., vault_secret_path="secret/data/path/to/secret", vault_secret_key="my_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "secret/data/path/to/secret",
+            "vault_secret_key": "my_user",
+        },
     )
     ###############################################
 
@@ -448,12 +486,18 @@ class Settings(BaseSettings):
     # path is `my-api/prod`, the full path to use is `secret/data/my-api/prod`.
     # The `vault_secret_key` is the specific key to extract from a secret.
     username: str = Field(
-        ..., vault_secret_path="secret/data/my-api/prod", vault_secret_key="root_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "secret/data/my-api/prod",
+            "vault_secret_key": "root_user",
+        },
     )
     password: SecretStr = Field(
         ...,
-        vault_secret_path="secret/data/my-api/prod",
-        vault_secret_key="root_password",
+        json_schema_extra={
+            "vault_secret_path": "secret/data/my-api/prod",
+            "vault_secret_key": "root_password",
+        },
     )
 
 
@@ -484,7 +528,9 @@ class Settings(BaseSettings):
     # the secret actual path, eg. if your mount point is `secret/` (the default) and your secret
     # path is `my-api/prod`, the full path to use is `secret/data/my-api/prod`.
     # We don't pass a `vault_secret_key` here so that pydantic-settings-vault fetches all fields at once.
-    credentials: dict = Field(..., vault_secret_path="secret/data/my-api/prod")
+    credentials: dict = Field(
+        ..., json_schema_extra={"vault_secret_path": "secret/data/my-api/prod"}
+    )
 
 
 settings = Settings()
@@ -504,7 +550,9 @@ class Settings(BaseSettings):
     # the secret actual path, eg. if your mount point is `secret/` (the default) and your secret
     # path is `my-api/prod`, the full path to use is `secret/data/my-api/prod`.
     # We don't pass a `vault_secret_key` here so that pydantic-settings-vault fetches all fields at once.
-    credentials: Credentials = Field(..., vault_secret_path="secret/data/my-api/prod")
+    credentials: Credentials = Field(
+        ..., json_schema_extra={"vault_secret_path": "secret/data/my-api/prod"}
+    )
 
 
 settings = Settings()
@@ -531,10 +579,18 @@ class Settings(BaseSettings):
     # the full path to use is `kv/my-api/prod` (unlike with KV v2 secret engines).
     # The `vault_secret_key` is the specific key to extract from a secret.
     username: str = Field(
-        ..., vault_secret_path="kv/my-api/prod", vault_secret_key="root_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "kv/my-api/prod",
+            "vault_secret_key": "root_user",
+        },
     )
     password: SecretStr = Field(
-        ..., vault_secret_path="kv/my-api/prod", vault_secret_key="root_password"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "kv/my-api/prod",
+            "vault_secret_key": "root_password",
+        },
     )
 
 
@@ -568,8 +624,12 @@ class Settings(BaseSettings):
     # `my-db-prod`, the full path to use is `database/creds/my-db-prod`. You will receive
     # `username` and `password` fields in response.
     # You must *not* pass a `vault_secret_key` so that pydantic-settings-vault fetches both fields at once.
-    db_creds: DbCredentials = Field(..., vault_secret_path="database/creds/my-db-prod")
-    db_creds_in_dict: dict = Field(..., vault_secret_path="database/creds/my-db-prod")
+    db_creds: DbCredentials = Field(
+        ..., json_schema_extra={"vault_secret_path": "database/creds/my-db-prod"}
+    )
+    db_creds_in_dict: dict = Field(
+        ..., json_schema_extra={"vault_secret_path": "database/creds/my-db-prod"}
+    )
 
 
 settings = Settings()
@@ -596,10 +656,18 @@ ENV = os.getenv("ENV", "dev")
 class Settings(BaseSettings):
     # This will load different secrets depending on the value of the ENV environment variable
     username: str = Field(
-        ..., vault_secret_path=f"kv/my-api/{ENV}", vault_secret_key="root_user"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": f"kv/my-api/{ENV}",
+            "vault_secret_key": "root_user",
+        },
     )
     password: SecretStr = Field(
-        ..., vault_secret_path=f"kv/my-api/{ENV}", vault_secret_key="root_password"
+        ...,
+        json_schema_extra={
+            "vault_secret_path": f"kv/my-api/{ENV}",
+            "vault_secret_key": "root_password",
+        },
     )
 
 
@@ -624,7 +692,9 @@ to load the whole secret at once, pydantic-settings-vault will only load the con
   and the settings class
   ```python
   class Settings(BaseSettings):
-      my_secret: dict = Field(..., vault_secret_path="kv/my-secret")
+      my_secret: dict = Field(
+          ..., json_schema_extra={"vault_secret_path": "kv/my-secret"}
+      )
   ```
   pydantic-settings-vault will try to load only the `data` value (`a very important piece of data`) in
   `my_secret`, which will fail validation from Pydantic because it is not a dict.
