@@ -19,6 +19,7 @@ from pydantic_vault.entities import (
     AuthMethodParameters,
     HvacClientParameters,
     Kubernetes,
+    VaultJwt,
 )
 
 logger = logging.getLogger("pydantic-vault")
@@ -91,7 +92,9 @@ def _get_authenticated_vault_client(
             Union[bool, str], settings.model_config.get("vault_certificate_verify")
         )
         hvac_parameters.update({"verify": _vault_certificate_verify})
-        logger.debug(f"Found Vault CA bundle '{_vault_certificate_verify}' in Config")
+        logger.debug(
+            f"Found Vault CA bundle '{_vault_certificate_verify}' in model_config"
+        )
     if "VAULT_CA_BUNDLE" in os.environ:
         _vault_certificate_verify = os.environ["VAULT_CA_BUNDLE"]
         try:
@@ -118,6 +121,16 @@ def _get_authenticated_vault_client(
         logger.debug(
             f"Found Vault Auth mount point '{_vault_auth_mount_point}' in environment variables"
         )
+    if settings.model_config.get("vault_auth_path") is not None:
+        _vault_auth_path: str = settings.model_config["vault_auth_path"]  # type: ignore
+        _vault_auth_method_parameters["path"] = _vault_auth_path
+        logger.debug(f"Found Vault Auth path '{_vault_auth_path}' in model_config")
+    if "VAULT_AUTH_PATH" in os.environ:
+        _vault_auth_path = os.environ["VAULT_AUTH_PATH"]
+        _vault_auth_method_parameters["path"] = _vault_auth_path
+        logger.debug(
+            f"Found Vault Auth path '{_vault_auth_path}' in environment variables"
+        )
 
     _vault_token = _extract_vault_token(settings)
     if _vault_token is not None:
@@ -135,7 +148,7 @@ def _get_authenticated_vault_client(
         hvac_client.auth.kubernetes.login(
             _vault_kubernetes.role,
             _vault_kubernetes.jwt_token.get_secret_value(),
-            **_vault_auth_method_parameters,
+            mount_point=_vault_auth_method_parameters.get("mount_point", "kubernetes"),
         )
         logger.info(
             _format_vault_client_auth_log(
@@ -152,7 +165,7 @@ def _get_authenticated_vault_client(
         hvac_client.auth.approle.login(
             role_id=_vault_approle.role_id,
             secret_id=_vault_approle.secret_id.get_secret_value(),
-            **_vault_auth_method_parameters,
+            mount_point=_vault_auth_method_parameters.get("mount_point", "approle"),
         )
         logger.info(
             _format_vault_client_auth_log(
@@ -160,6 +173,23 @@ def _get_authenticated_vault_client(
                 "Approle",
                 _vault_namespace,
                 {"role_id": _vault_approle.role_id},
+            )
+        )
+        return hvac_client
+
+    _vault_jwt = _extract_jwt_token(settings)
+    if _vault_jwt is not None:
+        hvac_client.auth.jwt.jwt_login(
+            _vault_jwt.role,
+            _vault_jwt.token.get_secret_value(),
+            path=_vault_auth_method_parameters.get("path"),
+        )
+        logger.info(
+            _format_vault_client_auth_log(
+                _vault_url,
+                "JWT",
+                _vault_namespace,
+                {"role": _vault_jwt.role},
             )
         )
         return hvac_client
@@ -248,6 +278,41 @@ def _extract_kubernetes(settings: Type[BaseSettings]) -> Optional[Kubernetes]:
             return Kubernetes(role=kubernetes_role, jwt_token=_kubernetes_jwt)
 
     return None
+
+
+def _extract_jwt_token(settings: Type[BaseSettings]) -> Optional[VaultJwt]:
+    """
+    Extract jwt auth params from environment or from BaseSettings.model_config
+    """
+    vault_jwt: Optional[VaultJwt] = None
+    _vault_jwt_role: Optional[str] = None
+    _vault_jwt_token: Optional[SecretStr] = None
+
+    # Load from BaseSettings.model_config
+    if settings.model_config.get("vault_jwt_role") is not None:
+        _vault_jwt_role = settings.model_config["vault_jwt_role"]  # type: ignore[typeddict-item]
+        logger.debug(f"Found Vault JWT Role '{_vault_jwt_role}' in model_config")
+    if settings.model_config.get("vault_jwt_token") is not None:
+        if isinstance(settings.model_config["vault_jwt_token"], SecretStr):  # type: ignore[typeddict-item]
+            _vault_jwt_token = settings.model_config["vault_jwt_token"]  # type: ignore[typeddict-item]
+        else:
+            _vault_jwt_token = SecretStr(settings.model_config["vault_jwt_token"])  # type: ignore[typeddict-item]
+        logger.debug("Found Vault JWT Token in model_config")
+
+    # Load (and eventually override) from environment
+    if "VAULT_JWT_ROLE" in os.environ:
+        _vault_jwt_role = os.environ["VAULT_JWT_ROLE"]
+        logger.debug(
+            f"Found Vault JWT Role '{_vault_jwt_role}' in environment variables"
+        )
+    if "VAULT_JWT_TOKEN" in os.environ:
+        _vault_jwt_token = SecretStr(os.environ["VAULT_JWT_TOKEN"])
+        logger.debug("Found Vault JWT Token in environment variables")
+
+    if _vault_jwt_role is not None and _vault_jwt_token is not None:
+        vault_jwt = VaultJwt(role=_vault_jwt_role, token=_vault_jwt_token)
+
+    return vault_jwt
 
 
 class VaultSettingsSource(PydanticBaseSettingsSource):

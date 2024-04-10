@@ -23,6 +23,7 @@ authentication for example).
     + [Approle](#approle)
     + [Kubernetes](#kubernetes)
     + [Vault token](#vault-token)
+    + [JWT/OIDC](#jwtoidc)
   * [Order of priority](#order-of-priority)
 - [Logging](#logging)
 - [Examples](#examples)
@@ -34,6 +35,8 @@ authentication for example).
 - [Known limitations](#known-limitations)
 - [Inspirations](#inspirations)
 - [License](#license)
+- [Development](#development)
+  * [Debugging with a real Vault server](#debugging-with-a-real-vault-server)
 
 <!-- tocstop -->
 
@@ -52,7 +55,7 @@ pipenv install pydantic-settings-vault
 With `pydantic_settings.BaseSettings` class, you can easily "create a clearly-defined, type-hinted
 application configuration class" that gets its configuration from environment variables. It will work the same when 
 developing locally (where you probably login with the Vault CLI and your own user account) and when deploying in 
-production (using a Vault Approle or Kubernetes authentication for example).
+production (using a Vault Approle, Kubernetes or JWT/OIDC authentication for example).
 
 You can create a normal `BaseSettings` class, and define the `settings_customise_sources()` method to load secrets from your Vault instance using the `VaultSettingsSource` class:
 
@@ -152,13 +155,14 @@ password: SecretStr = Field(
 
 You can configure the behaviour of pydantic-settings-vault in your `Settings.model_config` dict, or using environment variables:
 
-| Settings name                  | Type                  | Required | Environment variable     | Description                                                                                                                      |
-|--------------------------------|-----------------------|----------|--------------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `settings_customise_sources()` |                       | **Yes**  | N/A                      | You need to implement this function to use Vault as a settings source, and choose the priority order you want                    |
-| `vault_url`                    | `str`                 | **Yes**  | `VAULT_ADDR`             | Your Vault URL                                                                                                                   |
-| `vault_namespace`              | `str \| None`         | No       | `VAULT_NAMESPACE`        | Your Vault namespace (if you use one, requires Vault Enterprise)                                                                 |
-| `vault_auth_mount_point`       | `str \| None`         | No       | `VAULT_AUTH_MOUNT_POINT` | The mount point of the authentication method, if different from its default mount point                                          |
-| `vault_certificate_verify`     | `str \| bool \| None` | No       | `VAULT_CA_BUNDLE`        | The path to a CA bundle validating your Vault certificate, or `False` to disable verification (see [hvac docs][hvac-private-ca]) |
+| Settings name                   | Type                  | Required | Environment variable     | Description                                                                                                                                            |
+|---------------------------------|-----------------------|----------|--------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `settings_customise_sources()`  |                       | **Yes**  | N/A                      | You need to implement this function to use Vault as a settings source, and choose the priority order you want                                          |
+| `vault_url`                     | `str`                 | **Yes**  | `VAULT_ADDR`             | Your Vault URL                                                                                                                                         |
+| `vault_namespace`               | `str \| None`         | No       | `VAULT_NAMESPACE`        | Your Vault namespace (if you use one, requires Vault Enterprise)                                                                                       |
+| `vault_auth_path`               | `str \| None`         | No       | `VAULT_AUTH_PATH`        | The path of the authentication method, such as /auth/{path}/login, if different from its default, is only supported by the JWT authentication method.  |
+| `vault_auth_mount_point`        | `str \| None`         | No       | `VAULT_AUTH_MOUNT_POINT` | The mount point of the authentication method, if different from its default mount point                                                                |
+| `vault_certificate_verify`      | `str \| bool \| None` | No       | `VAULT_CA_BUNDLE`        | The path to a CA bundle validating your Vault certificate, or `False` to disable verification (see [hvac docs][hvac-private-ca])                       |
 
 Environment variables override what has been defined in the `Config` class.
 
@@ -170,6 +174,7 @@ pydantic-settings-vault supports the following authentication method (in descend
   - [direct token authentication][vault-auth-token]
   - [kubernetes][vault-auth-kubernetes]
   - [approle][vault-auth-approle]
+  - [jwt/oidc][vault-auth-jwt-oidc]
 
 pydantic-settings-vault tries to be transparent and help you work, both during local development and in production. It will try to
 find the required information for the first authentication method, if it can't it goes on to the next method, until it
@@ -327,6 +332,67 @@ class Settings(BaseSettings):
     model_config = {
         "vault_url": "https://vault.tld",
         "vault_token": SecretStr("my-secret-token"),
+    }
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            VaultSettingsSource(settings_cls),
+            file_secret_settings,
+        )
+```
+
+#### JWT/OIDC
+
+To authenticate using the [JWT/OIDC method][vault-auth-jwt-oidc], you need to pass 
+a token role and a token itself to your Settings class.
+
+pydantic-settings-vault reads this information from the following sources (in descending order of priority):
+
+- the `VAULT_JWT_ROLE` and `VAULT_JWT_TOKEN` environment variables
+- the `vault_jwt_role` and `vault_jwt_token` configuration fields in your 
+  `Settings.model_config` class (`vault_jwt_token` can be a `str` or a `SecretStr`)
+
+You can also mix and match, for example, write the role in your `Settings.model_config` 
+class and retrieve the token from the environment at runtime.
+
+Example:
+```python
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+from pydantic_vault import VaultSettingsSource
+
+
+class Settings(BaseSettings):
+    username: str = Field(
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_user",
+        },
+    )
+    password: SecretStr = Field(
+        ...,
+        json_schema_extra={
+            "vault_secret_path": "path/to/secret",
+            "vault_secret_key": "my_password",
+        },
+    )
+
+    model_config = {
+        "vault_url": "https://vault.tld",
+        "vault_jwt_role": "my-role",
+        "vault_jwt_token": SecretStr("my-token"),
     }
 
     @classmethod
@@ -712,6 +778,27 @@ to load the whole secret at once, pydantic-settings-vault will only load the con
 
 pydantic-settings-vault is available under the [MIT license](./LICENSE).
 
+## Development
+
+### Debugging with a real Vault server
+
+You can use a real Vault server to debug this project. To make this process
+easier, this project includes a `docker-compose.yml` file that can run a 
+ready-to-use Vault server.
+
+To run the server and set it up, run the following commands:
+
+```shell
+docker-compose up
+make setup-vault
+```
+
+After that, you will have a Vault server running at `http://localhost:8200`, where you can authorize in two ways:
+
+- using the root token (which is `token`)
+- using the JWT method (role=jwt_role, token=[link](./configs/vault/jwt_token.txt))
+- using the AppRole method (the values of role_id and secret_id can be found in the logs of the `make setup-vault` command).
+
 [ansible hashi_vault]: https://docs.ansible.com/ansible/latest/collections/community/hashi_vault/hashi_vault_lookup.html
 [hvac-private-ca]: https://hvac.readthedocs.io/en/stable/advanced_usage.html#making-use-of-private-ca
 [pydantic]: https://docs.pydantic.dev/latest/
@@ -722,4 +809,5 @@ pydantic-settings-vault is available under the [MIT license](./LICENSE).
 [vault-auth-approle]: https://www.vaultproject.io/docs/auth/approle
 [vault-auth-kubernetes]: https://www.vaultproject.io/docs/auth/kubernetes
 [vault-auth-token]: https://www.vaultproject.io/docs/auth/token
+[vault-auth-jwt-oidc]: https://developer.hashicorp.com/vault/docs/auth/jwt
 [vault-kv-v2]: https://www.vaultproject.io/docs/secrets/kv/kv-v2/

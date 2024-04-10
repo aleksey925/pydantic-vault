@@ -1,3 +1,6 @@
+setup-vault:
+	 docker exec -it vault /setup.sh
+
 lint:
 	pre-commit run --all
 

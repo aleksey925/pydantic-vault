@@ -1,0 +1,12 @@
+services:
+  vault:
+    image: vault:1.13.3
+    container_name: vault
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=token
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    volumes:
+      - ./configs/vault/jwt_public_key.pem:/jwt_public_key.pem
+      - ./configs/vault/setup.sh:/setup.sh
+    ports:
+      - "8200:8200"

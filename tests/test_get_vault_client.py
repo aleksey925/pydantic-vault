@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Union
 from unittest import mock
 
 import pytest
@@ -266,7 +267,7 @@ def test_get_vault_client_approle_in_config(caplog: LogCaptureFixture) -> None:
         _get_authenticated_vault_client(Settings)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
-            role_id="fake-role-id", secret_id="fake-secret-id"
+            role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
         )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Role ID 'fake-role-id' in model_config") in caplog.record_tuples
@@ -288,7 +289,7 @@ def test_get_vault_client_approle_in_config(caplog: LogCaptureFixture) -> None:
         _get_authenticated_vault_client(Settings)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
-            role_id="fake-role-id", secret_id="fake-secret-id"
+            role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
         )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Role ID 'fake-role-id' in model_config") in caplog.record_tuples
@@ -313,7 +314,7 @@ def test_get_vault_client_approle_in_environment(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
-        role_id="fake-role-id", secret_id="fake-secret-id"
+        role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
     )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Role ID 'fake-role-id' in environment variables") in caplog.record_tuples
@@ -339,7 +340,7 @@ def test_get_vault_client_approle_in_environment_and_config(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
-        role_id="fake-role-id", secret_id="fake-secret-id"
+        role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
     )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Role ID 'fake-role-id' in model_config") in caplog.record_tuples
@@ -372,7 +373,9 @@ def test_get_vault_client_approle_priority_env_config(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
-        role_id="fake-role-id-from-env", secret_id="fake-secret-id-from-env"
+        role_id="fake-role-id-from-env",
+        secret_id="fake-secret-id-from-env",
+        mount_point="approle",
     )
 
 
@@ -541,7 +544,7 @@ def test_get_vault_client_with_kubernetes_token_role_in_config(
         _get_authenticated_vault_client(Settings)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
-            "my-role", mock_kubernetes_token_from_file
+            "my-role", mock_kubernetes_token_from_file, mount_point="kubernetes"
         )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Kubernetes JWT Token in file '/var/run/secrets/kubernetes.io/serviceaccount/token'") in caplog.record_tuples
@@ -568,7 +571,7 @@ def test_get_vault_client_with_kubernetes_token_role_in_environment(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
-        "my-role-from-env", mock_kubernetes_token_from_file
+        "my-role-from-env", mock_kubernetes_token_from_file, mount_point="kubernetes"
     )
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Kubernetes JWT Token in file '/var/run/secrets/kubernetes.io/serviceaccount/token'") in caplog.record_tuples
@@ -600,7 +603,7 @@ def test_get_vault_client_with_kubernetes_token_role_priority_env_config(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
-        "my-role-from-env", mock_kubernetes_token_from_file
+        "my-role-from-env", mock_kubernetes_token_from_file, mount_point="kubernetes"
     )
 
 
@@ -717,7 +720,7 @@ def test_get_vault_client_kubernetes_approle_priority(
     _get_authenticated_vault_client(Settings)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
-        "my-role", mock_kubernetes_token_from_file
+        "my-role", mock_kubernetes_token_from_file, mount_point="kubernetes"
     )
     vault_client_mock.return_value.auth.approle.login.assert_not_called()
 
@@ -803,7 +806,7 @@ def test_get_vault_client_with_disabled_ssl_verify_in_config(
         verify=False,
     )
     # fmt: off
-    assert ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle 'False' in Config") in caplog.record_tuples
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle 'False' in model_config") in caplog.record_tuples
     # fmt: on
 
 
@@ -826,7 +829,7 @@ def test_get_vault_client_with_custom_ssl_verify_in_config(
         verify="/path/to/ca.crt",
     )
     # fmt: off
-    assert ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle '/path/to/ca.crt' in Config") in caplog.record_tuples
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle '/path/to/ca.crt' in model_config") in caplog.record_tuples
     # fmt: on
 
 
@@ -900,7 +903,7 @@ def test_get_vault_client_custom_ssl_priority(
     )
 
     # fmt: off
-    ca_in_config_log = ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle 'False' in Config")
+    ca_in_config_log = ("pydantic-vault", logging.DEBUG, "Found Vault CA bundle 'False' in model_config")
     ca_in_environment_log = (
     "pydantic-vault", logging.DEBUG, "Found Vault CA bundle '/path/to/ca.crt' in environment variables")
 
@@ -909,3 +912,209 @@ def test_get_vault_client_custom_ssl_priority(
     # Ensure the Environment variable log happens after the other, so users know it was considered last and used
     assert caplog.record_tuples.index(ca_in_config_log) < caplog.record_tuples.index(ca_in_environment_log)
     # fmt: on
+
+
+@pytest.mark.parametrize("jwt_token", ["fake-token", SecretStr("fake-token")])
+def test_get_authenticated_vault_client__get_client_with_auth_by_jwt(
+    mocker: MockerFixture, caplog: LogCaptureFixture, jwt_token: Union[str, SecretStr]
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role",
+            "vault_jwt_token": jwt_token,
+        }
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path=None
+    )
+    # fmt: off
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Role 'fake-role' in model_config") in caplog.record_tuples
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Token in model_config") in caplog.record_tuples
+    assert ("pydantic-vault", logging.INFO, "Connecting to Vault 'https://vault.tld' with method 'JWT' ({'role': 'fake-role'})") in caplog.record_tuples
+    # fmt: on
+
+
+def test__get_authenticated_vault_client__get_vault_client_jwt_params_from_env_vars(
+    mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+
+    monkeypatch.setenv("VAULT_JWT_ROLE", "fake-role")
+    monkeypatch.setenv("VAULT_JWT_TOKEN", "fake-token")
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path=None
+    )
+    # fmt: off
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Role 'fake-role' in environment variables") in caplog.record_tuples
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Token in environment variables") in caplog.record_tuples
+    # fmt: on
+
+
+def test__get_authenticated_vault_client__pass_part_of_jwt_params_through_config_part_form_env_var(
+    mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role",
+        }
+
+    monkeypatch.setenv("VAULT_JWT_TOKEN", "fake-token")
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path=None
+    )
+    # fmt: off
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Role 'fake-role' in model_config") in caplog.record_tuples
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault JWT Token in environment variables") in caplog.record_tuples
+    # fmt: on
+
+
+def test_get_authenticated_vault_client__override_jwt_params_from_config_by_env_vars__used_values_from_env_vars(
+    mocker: MockerFixture,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role-from-config",
+            "vault_jwt_token": SecretStr("fake-token-from-config"),
+        }
+
+    monkeypatch.setenv("VAULT_JWT_ROLE", "fake-role-from-env")
+    monkeypatch.setenv("VAULT_JWT_TOKEN", "fake-token-from-env")
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role-from-env", "fake-token-from-env", path=None
+    )
+
+
+def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_config(
+    mocker: MockerFixture, caplog: LogCaptureFixture
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role",
+            "vault_jwt_token": SecretStr("fake-token"),
+            "vault_auth_path": "custom-path-from-config",
+        }
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path="custom-path-from-config"
+    )
+    # fmt: off
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault Auth path 'custom-path-from-config' in model_config") in caplog.record_tuples
+    # fmt: on
+
+
+def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_env_var(
+    mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role",
+            "vault_jwt_token": SecretStr("fake-token"),
+        }
+
+    monkeypatch.setenv("VAULT_AUTH_PATH", "custom-path-from-env")
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path="custom-path-from-env"
+    )
+    # fmt: off
+    assert ("pydantic-vault", logging.DEBUG, "Found Vault Auth path 'custom-path-from-env' in environment variables") in caplog.record_tuples
+    # fmt: on
+
+
+def test_get_authenticated_vault_client__override_vault_auth_path_from_config_by_env_var__used_values_from_env_var(
+    mocker: MockerFixture, monkeypatch: MonkeyPatch
+) -> None:
+    # arrange
+    class Settings(BaseSettings):
+        model_config = {  # type: ignore
+            "vault_url": "https://vault.tld",
+            "vault_jwt_role": "fake-role",
+            "vault_jwt_token": SecretStr("fake-token"),
+            "vault_auth_path": "custom-path-from-config",
+        }
+
+    monkeypatch.setenv("VAULT_AUTH_PATH", "custom-path-from-env")
+
+    vault_client_mock = mocker.patch(
+        "pydantic_vault.vault_settings.HvacClient", autospec=True
+    )
+
+    # act
+    _get_authenticated_vault_client(Settings)
+
+    # assert
+    vault_client_mock.assert_called_once_with("https://vault.tld")
+    vault_client_mock.return_value.auth.jwt.jwt_login.assert_called_once_with(
+        "fake-role", "fake-token", path="custom-path-from-env"
+    )
