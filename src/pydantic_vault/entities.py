@@ -17,6 +17,7 @@ class HvacReadSecretParameters(TypedDict, total=False):
 
 class AuthMethodParameters(TypedDict, total=False):
     mount_point: str
+    path: str
 
 
 class Approle(NamedTuple):
@@ -27,3 +28,8 @@ class Approle(NamedTuple):
 class Kubernetes(NamedTuple):
     role: str
     jwt_token: SecretStr
+
+
+class VaultJwt(NamedTuple):
+    role: str
+    token: SecretStr
