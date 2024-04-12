@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ## [2.1.0] - 2024-04-12
-Thank you, @vladimir-kotikov, for your contribution! Support for the new authorization 
+Thank you, @vladimir-kotikov, for your contribution! Support for the new authorization
 method JWT/OIDC was inspired by your MR to the original project.
 
 ### Added

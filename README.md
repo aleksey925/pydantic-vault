@@ -53,8 +53,8 @@ pipenv install pydantic-settings-vault
 ## Getting started
 
 With `pydantic_settings.BaseSettings` class, you can easily "create a clearly-defined, type-hinted
-application configuration class" that gets its configuration from environment variables. It will work the same when 
-developing locally (where you probably login with the Vault CLI and your own user account) and when deploying in 
+application configuration class" that gets its configuration from environment variables. It will work the same when
+developing locally (where you probably login with the Vault CLI and your own user account) and when deploying in
 production (using a Vault Approle, Kubernetes or JWT/OIDC authentication for example).
 
 You can create a normal `BaseSettings` class, and define the `settings_customise_sources()` method to load secrets from your Vault instance using the `VaultSettingsSource` class:
@@ -354,16 +354,16 @@ class Settings(BaseSettings):
 
 #### JWT/OIDC
 
-To authenticate using the [JWT/OIDC method][vault-auth-jwt-oidc], you need to pass 
+To authenticate using the [JWT/OIDC method][vault-auth-jwt-oidc], you need to pass
 a token role and a token itself to your Settings class.
 
 pydantic-settings-vault reads this information from the following sources (in descending order of priority):
 
 - the `VAULT_JWT_ROLE` and `VAULT_JWT_TOKEN` environment variables
-- the `vault_jwt_role` and `vault_jwt_token` configuration fields in your 
+- the `vault_jwt_role` and `vault_jwt_token` configuration fields in your
   `Settings.model_config` class (`vault_jwt_token` can be a `str` or a `SecretStr`)
 
-You can also mix and match, for example, write the role in your `Settings.model_config` 
+You can also mix and match, for example, write the role in your `Settings.model_config`
 class and retrieve the token from the environment at runtime.
 
 Example:
@@ -783,7 +783,7 @@ pydantic-settings-vault is available under the [MIT license](./LICENSE).
 ### Debugging with a real Vault server
 
 You can use a real Vault server to debug this project. To make this process
-easier, this project includes a `docker-compose.yml` file that can run a 
+easier, this project includes a `docker-compose.yml` file that can run a
 ready-to-use Vault server.
 
 To run the server and set it up, run the following commands:
@@ -796,7 +796,7 @@ make setup-vault
 After that, you will have a Vault server running at `http://localhost:8200`, where you can authorize in two ways:
 
 - using the root token (which is `token`)
-- using the JWT method (role=jwt_role, token=[link](./configs/vault/jwt_token.txt))
+- using the JWT method (role=`jwt_role`, token=[link](./configs/vault/jwt_token.txt))
 - using the AppRole method (the values of role_id and secret_id can be found in the logs of the `make setup-vault` command).
 
 [ansible hashi_vault]: https://docs.ansible.com/ansible/latest/collections/community/hashi_vault/hashi_vault_lookup.html

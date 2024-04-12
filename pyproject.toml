@@ -45,9 +45,47 @@ pytest-cov = "^5.0.0"
 pyfakefs = "^5.2.3"
 pre-commit = "^2.21.0"
 
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "A",    # flake8-builtins
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "T20",  # flake8-print
+    "C90",  # flake8-complexity (mccabe)
+    "UP",   # pyupgrade
+    "RUF",  # ruff
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "A003",  # class attribute {name} is shadowing a python builtin
+    "N818",  # exception names should be named with an "Error" suffix
+]
+
+[tool.mypy]
+files = "src/pydantic_vault,tests"
+namespace_packages = true
+pretty = true
+plugins = "pydantic.mypy"
+mypy_path = "typings"
+
+warn_unused_configs = true
+follow_imports = "silent"
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+# for strict mypy: (this is the tricky one :-))
+disallow_untyped_defs = true
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.isort]
-profile = "black"

@@ -7,11 +7,10 @@ from hvac.exceptions import VaultError
 from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources import SettingsError
+from pydantic_vault import VaultSettingsSource
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
-
-from pydantic_vault import VaultSettingsSource
 
 
 class VaultDataWrapper(TypedDict):
@@ -24,9 +23,7 @@ VaultStructure = Dict[str, VaultDataWrapper]
 def fake_vault(path: str) -> VaultDataWrapper:
     vault: VaultStructure = {
         # Database secret engine
-        "database/creds/db_role": {
-            "data": {"username": "db_username", "password": "db_password"}
-        },
+        "database/creds/db_role": {"data": {"username": "db_username", "password": "db_password"}},
         # KV v1 secret engine
         "kv/normal_secret": {"data": {"kvv1_key": "kvv1_value"}},
         "kv/secret_with_data_key": {

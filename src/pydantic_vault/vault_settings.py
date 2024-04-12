@@ -5,7 +5,7 @@ import logging
 import os
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Type, TypeVar, Union, cast
+from typing import Any, Dict, Union, cast
 
 from hvac import Client as HvacClient
 from hvac.exceptions import VaultError
@@ -26,23 +26,20 @@ logger = logging.getLogger("pydantic-vault")
 logger.addHandler(logging.NullHandler())
 
 
-class PydanticVaultException(BaseException):
-    ...
+class PydanticVaultException(BaseException): ...
 
 
-class VaultParameterError(PydanticVaultException, ValueError):
-    ...
+class VaultParameterError(PydanticVaultException, ValueError): ...
 
 
-class _ContinueException(PydanticVaultException, Exception):
-    ...
+class _ContinueException(PydanticVaultException, Exception): ...
 
 
 def _format_vault_client_auth_log(
     vault_url: str,
     vault_auth_method: str,
-    vault_namespace: Optional[str] = None,
-    additional_parameters: Optional[Dict[str, str]] = None,
+    vault_namespace: str | None = None,
+    additional_parameters: dict[str, str] | None = None,
 ) -> str:
     message = f"Connecting to Vault '{vault_url}'"
 
@@ -57,13 +54,13 @@ def _format_vault_client_auth_log(
     return message
 
 
-def _get_authenticated_vault_client(
-    settings: Type[BaseSettings],
-) -> Optional[HvacClient]:
+def _get_authenticated_vault_client(  # noqa: C901
+    settings: type[BaseSettings],
+) -> HvacClient | None:
     hvac_parameters: HvacClientParameters = {}
 
     # URL
-    _vault_url: Optional[str] = None
+    _vault_url: str | None = None
     if settings.model_config.get("vault_url") is not None:
         _vault_url = settings.model_config["vault_url"]  # type: ignore
         logger.debug(f"Found Vault Address '{_vault_url}' in model_config")
@@ -74,7 +71,7 @@ def _get_authenticated_vault_client(
         raise VaultParameterError("No URL provided to connect to Vault")
 
     # Namespace
-    _vault_namespace: Optional[str] = None
+    _vault_namespace: str | None = None
     if settings.model_config.get("vault_namespace") is not None:
         _vault_namespace = cast(str, settings.model_config["vault_namespace"])  # type: ignore
         hvac_parameters.update({"namespace": _vault_namespace})
@@ -82,19 +79,15 @@ def _get_authenticated_vault_client(
     if "VAULT_NAMESPACE" in os.environ:
         _vault_namespace = os.environ["VAULT_NAMESPACE"]
         hvac_parameters.update({"namespace": _vault_namespace})
-        logger.debug(
-            f"Found Vault Namespace '{_vault_namespace}' in environment variables"
-        )
+        logger.debug(f"Found Vault Namespace '{_vault_namespace}' in environment variables")
 
     # Certificate verification
     if settings.model_config.get("vault_certificate_verify") is not None:
-        _vault_certificate_verify: Union[bool, str] = cast(
+        _vault_certificate_verify: bool | str = cast(
             Union[bool, str], settings.model_config.get("vault_certificate_verify")
         )
         hvac_parameters.update({"verify": _vault_certificate_verify})
-        logger.debug(
-            f"Found Vault CA bundle '{_vault_certificate_verify}' in model_config"
-        )
+        logger.debug(f"Found Vault CA bundle '{_vault_certificate_verify}' in model_config")
     if "VAULT_CA_BUNDLE" in os.environ:
         _vault_certificate_verify = os.environ["VAULT_CA_BUNDLE"]
         try:
@@ -112,9 +105,7 @@ def _get_authenticated_vault_client(
     if settings.model_config.get("vault_auth_mount_point") is not None:
         _vault_auth_mount_point: str = settings.model_config["vault_auth_mount_point"]  # type: ignore
         _vault_auth_method_parameters["mount_point"] = _vault_auth_mount_point
-        logger.debug(
-            f"Found Vault Auth mount point '{_vault_auth_mount_point}' in model_config"
-        )
+        logger.debug(f"Found Vault Auth mount point '{_vault_auth_mount_point}' in model_config")
     if "VAULT_AUTH_MOUNT_POINT" in os.environ:
         _vault_auth_mount_point = os.environ["VAULT_AUTH_MOUNT_POINT"]
         _vault_auth_method_parameters["mount_point"] = _vault_auth_mount_point
@@ -128,17 +119,13 @@ def _get_authenticated_vault_client(
     if "VAULT_AUTH_PATH" in os.environ:
         _vault_auth_path = os.environ["VAULT_AUTH_PATH"]
         _vault_auth_method_parameters["path"] = _vault_auth_path
-        logger.debug(
-            f"Found Vault Auth path '{_vault_auth_path}' in environment variables"
-        )
+        logger.debug(f"Found Vault Auth path '{_vault_auth_path}' in environment variables")
 
     _vault_token = _extract_vault_token(settings)
     if _vault_token is not None:
         hvac_parameters.update({"token": _vault_token.get_secret_value()})
         hvac_client = HvacClient(_vault_url, **hvac_parameters)
-        logger.info(
-            _format_vault_client_auth_log(_vault_url, "Vault Token", _vault_namespace)
-        )
+        logger.info(_format_vault_client_auth_log(_vault_url, "Vault Token", _vault_namespace))
         return hvac_client
 
     hvac_client = HvacClient(_vault_url, **hvac_parameters)
@@ -198,10 +185,10 @@ def _get_authenticated_vault_client(
     return None
 
 
-def _extract_approle(settings: Type[BaseSettings]) -> Optional[Approle]:
+def _extract_approle(settings: type[BaseSettings]) -> Approle | None:
     """Extract Approle information from environment or from BaseSettings.model_config"""
-    _vault_role_id: Optional[str] = None
-    _vault_secret_id: Optional[SecretStr] = None
+    _vault_role_id: str | None = None
+    _vault_secret_id: SecretStr | None = None
 
     # Load from BaseSettings.model_config
     if settings.model_config.get("vault_role_id") is not None:
@@ -212,7 +199,7 @@ def _extract_approle(settings: Type[BaseSettings]) -> Optional[Approle]:
             _vault_secret_id = settings.model_config["vault_secret_id"]  # type: ignore
         else:
             _vault_secret_id = SecretStr(settings.model_config["vault_secret_id"])  # type: ignore
-        logger.debug(f"Found Vault Secret ID in model_config")
+        logger.debug("Found Vault Secret ID in model_config")
 
     # Load (and eventually override) from environment
     if "VAULT_ROLE_ID" in os.environ:
@@ -228,7 +215,7 @@ def _extract_approle(settings: Type[BaseSettings]) -> Optional[Approle]:
     return None
 
 
-def _extract_vault_token(settings: Type[BaseSettings]) -> Optional[SecretStr]:
+def _extract_vault_token(settings: type[BaseSettings]) -> SecretStr | None:
     """Extract Vault token from environment, from .vault-token file or from BaseSettings.model_config"""
     _vault_token: SecretStr
     if "VAULT_TOKEN" in os.environ:
@@ -253,7 +240,7 @@ def _extract_vault_token(settings: Type[BaseSettings]) -> Optional[SecretStr]:
     return None
 
 
-def _extract_kubernetes(settings: Type[BaseSettings]) -> Optional[Kubernetes]:
+def _extract_kubernetes(settings: type[BaseSettings]) -> Kubernetes | None:
     """Extract Kubernetes token from default file, and role from environment or from BaseSettings.model_config"""
     _kubernetes_jwt: SecretStr
     with suppress(FileNotFoundError):
@@ -264,15 +251,13 @@ def _extract_kubernetes(settings: Type[BaseSettings]) -> Optional[Kubernetes]:
             )
 
         # Kubernetes role
-        kubernetes_role: Optional[str] = None
+        kubernetes_role: str | None = None
         if settings.model_config.get("vault_kubernetes_role") is not None:
             kubernetes_role = settings.model_config["vault_kubernetes_role"]  # type: ignore
             logger.debug(f"Found Kubernetes role '{kubernetes_role}' in model_config")
         if "VAULT_KUBERNETES_ROLE" in os.environ:
             kubernetes_role = os.environ["VAULT_KUBERNETES_ROLE"]
-            logger.debug(
-                f"Found Kubernetes role '{kubernetes_role}' in environment variables"
-            )
+            logger.debug(f"Found Kubernetes role '{kubernetes_role}' in environment variables")
 
         if kubernetes_role is not None:
             return Kubernetes(role=kubernetes_role, jwt_token=_kubernetes_jwt)
@@ -280,13 +265,13 @@ def _extract_kubernetes(settings: Type[BaseSettings]) -> Optional[Kubernetes]:
     return None
 
 
-def _extract_jwt_token(settings: Type[BaseSettings]) -> Optional[VaultJwt]:
+def _extract_jwt_token(settings: type[BaseSettings]) -> VaultJwt | None:
     """
     Extract jwt auth params from environment or from BaseSettings.model_config
     """
-    vault_jwt: Optional[VaultJwt] = None
-    _vault_jwt_role: Optional[str] = None
-    _vault_jwt_token: Optional[SecretStr] = None
+    vault_jwt: VaultJwt | None = None
+    _vault_jwt_role: str | None = None
+    _vault_jwt_token: SecretStr | None = None
 
     # Load from BaseSettings.model_config
     if settings.model_config.get("vault_jwt_role") is not None:
@@ -302,9 +287,7 @@ def _extract_jwt_token(settings: Type[BaseSettings]) -> Optional[VaultJwt]:
     # Load (and eventually override) from environment
     if "VAULT_JWT_ROLE" in os.environ:
         _vault_jwt_role = os.environ["VAULT_JWT_ROLE"]
-        logger.debug(
-            f"Found Vault JWT Role '{_vault_jwt_role}' in environment variables"
-        )
+        logger.debug(f"Found Vault JWT Role '{_vault_jwt_role}' in environment variables")
     if "VAULT_JWT_TOKEN" in os.environ:
         _vault_jwt_token = SecretStr(os.environ["VAULT_JWT_TOKEN"])
         logger.debug("Found Vault JWT Token in environment variables")
@@ -316,16 +299,14 @@ def _extract_jwt_token(settings: Type[BaseSettings]) -> Optional[VaultJwt]:
 
 
 class VaultSettingsSource(PydanticBaseSettingsSource):
-    def __init__(self, settings_cls: Type[BaseSettings]) -> None:
+    def __init__(self, settings_cls: type[BaseSettings]) -> None:
         super().__init__(settings_cls)
 
-    def get_field_value(
-        self, field: FieldInfo, field_name: str
-    ) -> Tuple[Any, str, bool]:
-        raise NotImplemented  # pragma: no cover
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        raise NotImplementedError  # pragma: no cover
 
-    def __call__(self) -> Dict[str, Any]:
-        data: Dict[str, Any] = {}
+    def __call__(self) -> dict[str, Any]:
+        data: dict[str, Any] = {}
 
         vault_client = _get_authenticated_vault_client(self.settings_cls)
         if vault_client is None:
@@ -335,15 +316,15 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
         # Get secrets
         for field_name, field_info in self.settings_cls.model_fields.items():
             extra = self._get_field_extra(field_info)
-            vault_secret_path: Optional[str] = extra.get("vault_secret_path")
-            vault_secret_key: Optional[str] = extra.get("vault_secret_key")
+            vault_secret_path: str | None = extra.get("vault_secret_path")
+            vault_secret_key: str | None = extra.get("vault_secret_key")
 
             if vault_secret_path is None:
                 logger.debug(f"Skipping field {field_name}")
                 continue
 
             try:
-                vault_val: Union[str, Dict[str, Any]] = self._get_vault_secret(
+                vault_val: str | dict[str, Any] = self._get_vault_secret(
                     vault_client=vault_client,
                     vault_secret_path=vault_secret_path,
                     vault_secret_key=vault_secret_key,
@@ -365,8 +346,8 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
         self,
         vault_client: HvacClient,
         vault_secret_path: str,
-        vault_secret_key: Optional[str],
-    ) -> Union[str, Dict[str, Any]]:
+        vault_secret_key: str | None,
+    ) -> str | dict[str, Any]:
         try:
             vault_api_response = vault_client.read(vault_secret_path)
             if vault_api_response is None:
@@ -397,14 +378,12 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
 
     def _deserialize_complex_type(
         self,
-        vault_val: Union[str, Dict[str, Any]],
+        vault_val: str | dict[str, Any],
         field_info: FieldInfo,
         vault_secret_path: str,
-        vault_secret_key: Optional[str],
-    ) -> Union[str, Dict[str, Any]]:
-        is_field_complex = _annotation_is_complex(
-            field_info.annotation, field_info.metadata
-        )
+        vault_secret_key: str | None,
+    ) -> str | dict[str, Any]:
+        is_field_complex = _annotation_is_complex(field_info.annotation, field_info.metadata)
         if is_field_complex and not isinstance(vault_val, Dict):
             try:
                 try:
@@ -418,13 +397,11 @@ class VaultSettingsSource(PydanticBaseSettingsSource):
                 secret_full_path = vault_secret_path
                 if vault_secret_key is not None:
                     secret_full_path += f":{vault_secret_key}"
-                raise SettingsError(
-                    f'error parsing JSON for "{secret_full_path}"'
-                ) from e
+                raise SettingsError(f'error parsing JSON for "{secret_full_path}"') from e
 
         return vault_val
 
-    def _get_field_extra(self, field_info: FieldInfo) -> Dict[str, Any]:
+    def _get_field_extra(self, field_info: FieldInfo) -> dict[str, Any]:
         extra = {}
         if isinstance(field_info.json_schema_extra, Dict):
             extra.update(field_info.json_schema_extra)

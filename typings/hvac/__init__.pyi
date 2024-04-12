@@ -1,13 +1,13 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 class ApproleStub:
     @staticmethod
     def login(
         role_id: str,
-        secret_id: Optional[str] = None,
+        secret_id: str | None = None,
         use_token: bool = True,
         mount_point: str = "approle",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         raise NotImplementedError()
 
 class KubernetesStub:
@@ -17,7 +17,7 @@ class KubernetesStub:
         jwt: str,
         use_token: bool = True,
         mount_point: str = "kubernetes",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         raise NotImplementedError()
 
 class AuthStub:
@@ -27,21 +27,19 @@ class AuthStub:
 
 class JwtStub:
     @staticmethod
-    def jwt_login(
-        role: str, jwt: str, path: Optional[str] = None
-    ) -> Dict[str, Any]: ...
+    def jwt_login(role: str, jwt: str, path: str | None = None) -> dict[str, Any]: ...
 
 class Client:
     auth: AuthStub
     def __init__(
         self,
-        url: Optional[str] = None,
-        token: Optional[str] = None,
-        verify: Union[bool, str] = True,
+        url: str | None = None,
+        token: str | None = None,
+        verify: bool | str = True,
         timeout: int = 30,
         allow_redirects: bool = True,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         raise NotImplementedError()
-    def read(self, path: str) -> Dict[str, Any]:
+    def read(self, path: str) -> dict[str, Any]:
         raise NotImplementedError()
