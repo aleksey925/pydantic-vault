@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
-from typing import Union
+from typing import ClassVar, Union, cast
 from unittest import mock
 
 import pytest
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 from pydantic_vault import VaultParameterError
+from pydantic_vault.entities import SettingsConfigDict
 from pydantic_vault.vault_settings import _get_authenticated_vault_client
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pytest import LogCaptureFixture, MonkeyPatch
@@ -34,7 +35,7 @@ def test_get_vault_client_with_namespace_in_config(
     mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token",
             "vault_namespace": "some/namespace",
@@ -42,7 +43,7 @@ def test_get_vault_client_with_namespace_in_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld", namespace="some/namespace", token="fake-token"
     )
@@ -56,13 +57,13 @@ def test_get_vault_client_with_namespace_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_NAMESPACE", "some/namespace")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", namespace="some/namespace")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Namespace 'some/namespace' in environment variables") in caplog.record_tuples
@@ -73,11 +74,11 @@ def test_get_vault_client_namespace_priority(
     mocker: MockerFixture, monkeypatch: MonkeyPatch
 ) -> None:
     """
-    Environment variable VAULT_NAMESPACE should be preferred over value in Config class
+    Environment variable VAULT_NAMESPACE should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_namespace": "some/namespace/from/config",
         }
@@ -86,7 +87,7 @@ def test_get_vault_client_namespace_priority(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld", namespace="some/namespace/from/environment"
     )
@@ -95,13 +96,13 @@ def test_get_vault_client_namespace_priority(
 def test_get_vault_client_with_vault_token_in_config(caplog: LogCaptureFixture) -> None:
     # vault_token is a str
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token",
         }
 
     with mock.patch("pydantic_vault.vault_settings.HvacClient", autospec=True) as vault_client_mock:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(Settings.model_config)
         vault_client_mock.assert_called_once_with("https://vault.tld", token="fake-token")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Token in model_config") in caplog.record_tuples
@@ -111,13 +112,13 @@ def test_get_vault_client_with_vault_token_in_config(caplog: LogCaptureFixture) 
 
     # vault_token is a SecretStr, we will need to unwrap it
     class SettingsWithSecretToken(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
 
     with mock.patch("pydantic_vault.vault_settings.HvacClient", autospec=True) as vault_client_mock:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(SettingsWithSecretToken.model_config)
         vault_client_mock.assert_called_once_with("https://vault.tld", token="fake-token")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Token in model_config") in caplog.record_tuples
@@ -128,11 +129,11 @@ def test_get_vault_client_with_vault_token_in_token_file(
     mocker: MockerFixture, mock_vault_token_from_file: str, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", token=mock_vault_token_from_file)
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Token in file '~/.vault-token'") in caplog.record_tuples
@@ -143,13 +144,13 @@ def test_get_vault_client_with_vault_token_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_TOKEN", "fake-token")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", token="fake-token")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Token in environment variables") in caplog.record_tuples
@@ -160,11 +161,11 @@ def test_get_vault_client_vault_token_priority_env_config(
     mocker: MockerFixture, monkeypatch: MonkeyPatch
 ) -> None:
     """
-    Environment variable VAULT_TOKEN should be preferred over value in Config class
+    Environment variable VAULT_TOKEN should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token-from-config",
         }
@@ -173,7 +174,7 @@ def test_get_vault_client_vault_token_priority_env_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld", token="fake-token-from-environment"
     )
@@ -189,13 +190,13 @@ def test_get_vault_client_vault_token_priority_env_file(
     """
 
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_TOKEN", "fake-token-from-environment")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld", token="fake-token-from-environment"
     )
@@ -206,32 +207,32 @@ def test_get_vault_client_vault_token_priority_file_config(
     mock_vault_token_from_file: str,
 ) -> None:
     """
-    .vault-token file should be preferred over value in Config class
+    .vault-token file should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token-from-config",
         }
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", token="token-from-file")
 
 
 def test_get_vault_client_approle_in_config(caplog: LogCaptureFixture) -> None:
     # vault_secret_id is a str
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
             "vault_secret_id": "fake-secret-id",
         }
 
     with mock.patch("pydantic_vault.vault_settings.HvacClient", autospec=True) as vault_client_mock:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(Settings.model_config)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
             role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
@@ -244,14 +245,14 @@ def test_get_vault_client_approle_in_config(caplog: LogCaptureFixture) -> None:
 
     # vault_secret_id is a SecretStr, we will need to unwrap it
     class SettingsWithSecretSecretId(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
             "vault_secret_id": SecretStr("fake-secret-id"),
         }
 
     with mock.patch("pydantic_vault.vault_settings.HvacClient", autospec=True) as vault_client_mock:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(SettingsWithSecretSecretId.model_config)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
             role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
@@ -267,14 +268,14 @@ def test_get_vault_client_approle_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_ROLE_ID", "fake-role-id")
     monkeypatch.setenv("VAULT_SECRET_ID", "fake-secret-id")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
@@ -289,7 +290,7 @@ def test_get_vault_client_approle_in_environment_and_config(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
         }
@@ -298,7 +299,7 @@ def test_get_vault_client_approle_in_environment_and_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id", secret_id="fake-secret-id", mount_point="approle"
@@ -314,11 +315,11 @@ def test_get_vault_client_approle_priority_env_config(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """
-    Environment variables VAULT_ROLE_ID and VAULT_SECRET_ID should be preferred over values in Config class
+    Environment variables VAULT_ROLE_ID and VAULT_SECRET_ID should be preferred over values in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id-from-config",
             "vault_secret_id": SecretStr("fake-secret-id-from-config"),
@@ -329,7 +330,7 @@ def test_get_vault_client_approle_priority_env_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id-from-env",
@@ -342,7 +343,7 @@ def test_get_vault_client_approle_custom_auth_mount_point_in_config(
     mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
             "vault_secret_id": SecretStr("fake-secret-id"),
@@ -351,7 +352,7 @@ def test_get_vault_client_approle_custom_auth_mount_point_in_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id",
@@ -367,7 +368,7 @@ def test_get_vault_client_approle_custom_auth_mount_point_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
             "vault_secret_id": SecretStr("fake-secret-id"),
@@ -377,7 +378,7 @@ def test_get_vault_client_approle_custom_auth_mount_point_in_environment(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id",
@@ -393,11 +394,11 @@ def test_get_vault_client_approle_custom_auth_mount_point_priority_env_config(
     mocker: MockerFixture, monkeypatch: MonkeyPatch
 ) -> None:
     """
-    Environment variable VAULT_AUTH_MOUNT_POINT should be preferred over value in Config class
+    Environment variable VAULT_AUTH_MOUNT_POINT should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_role_id": "fake-role-id",
             "vault_secret_id": SecretStr("fake-secret-id"),
@@ -408,7 +409,7 @@ def test_get_vault_client_approle_custom_auth_mount_point_priority_env_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.approle.login.assert_called_once_with(
         role_id="fake-role-id",
@@ -421,11 +422,11 @@ def test_get_vault_client_with_vault_url_in_config(
     mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Address 'https://vault.tld' in model_config") in caplog.record_tuples
@@ -442,7 +443,7 @@ def test_get_vault_client_with_vault_url_in_environment(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(cast(SettingsConfigDict, Settings.model_config))
     vault_client_mock.assert_called_once_with("https://vault.tld")
     # fmt: off
     assert ("pydantic-vault", logging.DEBUG, "Found Vault Address 'https://vault.tld' in environment variables") in caplog.record_tuples
@@ -453,17 +454,17 @@ def test_get_vault_client_vault_url_priority(
     mocker: MockerFixture, monkeypatch: MonkeyPatch
 ) -> None:
     """
-    Environment variable VAULT_ADDR should be preferred over value in Config class
+    Environment variable VAULT_ADDR should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault-from-config.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault-from-config.tld"}
 
     monkeypatch.setenv("VAULT_ADDR", "https://vault-from-environment.tld")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault-from-environment.tld")
 
 
@@ -472,7 +473,7 @@ def test_get_vault_client_with_no_vault_url_fails() -> None:
         pass
 
     with pytest.raises(VaultParameterError) as e:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(cast(SettingsConfigDict, Settings.model_config))
     assert "URL" in str(e)
 
 
@@ -480,13 +481,13 @@ def test_get_vault_client_with_kubernetes_token_role_in_config(
     mock_kubernetes_token_from_file: str, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role",
         }
 
     with mock.patch("pydantic_vault.vault_settings.HvacClient", autospec=True) as vault_client_mock:
-        _get_authenticated_vault_client(Settings)
+        _get_authenticated_vault_client(Settings.model_config)
         vault_client_mock.assert_called_once_with("https://vault.tld")
         vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
             "my-role", mock_kubernetes_token_from_file, mount_point="kubernetes"
@@ -505,13 +506,13 @@ def test_get_vault_client_with_kubernetes_token_role_in_environment(
     caplog: LogCaptureFixture,
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_KUBERNETES_ROLE", "my-role-from-env")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role-from-env", mock_kubernetes_token_from_file, mount_point="kubernetes"
@@ -528,11 +529,11 @@ def test_get_vault_client_with_kubernetes_token_role_priority_env_config(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """
-    Environment variable VAULT_KUBERNETES_ROLE should be preferred over value in Config class
+    Environment variable VAULT_KUBERNETES_ROLE should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role-from-config",
         }
@@ -541,7 +542,7 @@ def test_get_vault_client_with_kubernetes_token_role_priority_env_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role-from-env", mock_kubernetes_token_from_file, mount_point="kubernetes"
@@ -554,7 +555,7 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_in_config(
     caplog: LogCaptureFixture,
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role",
             "vault_auth_mount_point": "custom-kubernetes-from-config",
@@ -562,7 +563,7 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_in_config(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role",
@@ -581,7 +582,7 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_in_environment(
     caplog: LogCaptureFixture,
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role",
         }
@@ -590,7 +591,7 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_in_environment(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role",
@@ -608,11 +609,11 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_priority_env_config
     monkeypatch: MonkeyPatch,
 ) -> None:
     """
-    Environment variable VAULT_AUTH_MOUNT_POINT should be preferred over value in Config class
+    Environment variable VAULT_AUTH_MOUNT_POINT should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role",
             "vault_auth_mount_point": "custom-kubernetes-from-config",
@@ -622,7 +623,7 @@ def test_get_vault_client_kubernetes_custom_auth_mount_point_priority_env_config
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role",
@@ -641,7 +642,7 @@ def test_get_vault_client_kubernetes_approle_priority(
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_kubernetes_role": "my-role",
             "vault_role_id": "fake-role-id",
@@ -650,7 +651,7 @@ def test_get_vault_client_kubernetes_approle_priority(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld")
     vault_client_mock.return_value.auth.kubernetes.login.assert_called_once_with(
         "my-role", mock_kubernetes_token_from_file, mount_point="kubernetes"
@@ -672,7 +673,7 @@ def test_get_vault_client_token_kubernetes_priority(
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token",
             "vault_kubernetes_role": "my-role",
@@ -680,7 +681,7 @@ def test_get_vault_client_token_kubernetes_priority(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", token="fake-token")
     vault_client_mock.return_value.auth.kubernetes.login.assert_not_called()
 
@@ -698,7 +699,7 @@ def test_get_vault_client_token_approle_priority(
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": "fake-token",
             "vault_role_id": "fake-role-id",
@@ -707,7 +708,7 @@ def test_get_vault_client_token_approle_priority(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with("https://vault.tld", token="fake-token")
     vault_client_mock.return_value.auth.approle.login.assert_not_called()
 
@@ -720,14 +721,14 @@ def test_get_vault_client_with_disabled_ssl_verify_in_config(
     mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_certificate_verify": False,
         }
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld",
         verify=False,
@@ -741,14 +742,14 @@ def test_get_vault_client_with_custom_ssl_verify_in_config(
     mocker: MockerFixture, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_certificate_verify": "/path/to/ca.crt",
         }
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld",
         verify="/path/to/ca.crt",
@@ -762,13 +763,13 @@ def test_get_vault_client_with_disabled_ssl_verify_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_CA_BUNDLE", "False")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld",
         verify=False,
@@ -782,13 +783,13 @@ def test_get_vault_client_with_custom_ssl_verify_in_environment(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_CA_BUNDLE", "/path/to/ca.crt")
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld",
         verify="/path/to/ca.crt",
@@ -802,11 +803,11 @@ def test_get_vault_client_custom_ssl_priority(
     mocker: MockerFixture, monkeypatch: MonkeyPatch, caplog: LogCaptureFixture
 ) -> None:
     """
-    Environment variable VAULT_CA_BUNDLE should be preferred over value in Config class
+    Environment variable VAULT_CA_BUNDLE should be preferred over value in model_config dict
     """
 
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_certificate_verify": False,
         }
@@ -815,7 +816,7 @@ def test_get_vault_client_custom_ssl_priority(
 
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
     vault_client_mock.assert_called_once_with(
         "https://vault.tld",
         verify="/path/to/ca.crt",
@@ -839,7 +840,7 @@ def test_get_authenticated_vault_client__get_client_with_auth_by_jwt(
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role",
             "vault_jwt_token": jwt_token,
@@ -849,7 +850,7 @@ def test_get_authenticated_vault_client__get_client_with_auth_by_jwt(
 
     # act
 
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -868,7 +869,7 @@ def test__get_authenticated_vault_client__get_vault_client_jwt_params_from_env_v
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     monkeypatch.setenv("VAULT_JWT_ROLE", "fake-role")
     monkeypatch.setenv("VAULT_JWT_TOKEN", "fake-token")
@@ -876,7 +877,7 @@ def test__get_authenticated_vault_client__get_vault_client_jwt_params_from_env_v
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -894,7 +895,7 @@ def test__get_authenticated_vault_client__pass_part_of_jwt_params_through_config
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role",
         }
@@ -904,7 +905,7 @@ def test__get_authenticated_vault_client__pass_part_of_jwt_params_through_config
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -923,7 +924,7 @@ def test_get_authenticated_vault_client__override_jwt_params_from_config_by_env_
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role-from-config",
             "vault_jwt_token": SecretStr("fake-token-from-config"),
@@ -935,7 +936,7 @@ def test_get_authenticated_vault_client__override_jwt_params_from_config_by_env_
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -949,7 +950,7 @@ def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_config(
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role",
             "vault_jwt_token": SecretStr("fake-token"),
@@ -959,7 +960,7 @@ def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_config(
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -976,7 +977,7 @@ def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_env_var(
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role",
             "vault_jwt_token": SecretStr("fake-token"),
@@ -987,7 +988,7 @@ def test_get_authenticated_vault_client__pass_jwt_vault_auth_path_in_env_var(
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
@@ -1004,7 +1005,7 @@ def test_get_authenticated_vault_client__override_vault_auth_path_from_config_by
 ) -> None:
     # arrange
     class Settings(BaseSettings):
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_jwt_role": "fake-role",
             "vault_jwt_token": SecretStr("fake-token"),
@@ -1016,7 +1017,7 @@ def test_get_authenticated_vault_client__override_vault_auth_path_from_config_by
     vault_client_mock = mocker.patch("pydantic_vault.vault_settings.HvacClient", autospec=True)
 
     # act
-    _get_authenticated_vault_client(Settings)
+    _get_authenticated_vault_client(Settings.model_config)
 
     # assert
     vault_client_mock.assert_called_once_with("https://vault.tld")
