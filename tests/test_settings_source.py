@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any, ClassVar, Dict, List
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings
 from pydantic_settings.sources import SettingsError
 from pydantic_vault import VaultSettingsSource
+from pydantic_vault.entities import SettingsConfigDict
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture
 from typing_extensions import TypedDict
@@ -96,7 +97,7 @@ def test_get_vault_secrets() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -116,7 +117,7 @@ def test_do_not_search_vault_for_keys_not_configured() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -156,7 +157,7 @@ def test_do_not_override_default_value_if_secret_is_not_found() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -188,7 +189,7 @@ def test_get_secret_without_key() -> None:
             {}, json_schema_extra={"vault_secret_path": "secret/data/first_level_key"}
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -227,7 +228,7 @@ def test_get_secrets_from_different_mount_points() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -253,7 +254,7 @@ def test_get_secret_jsonified() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -287,7 +288,7 @@ def test_get_secret_in_data_key() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -310,7 +311,7 @@ def test_get_secret_bad_json() -> None:
             },
         )
 
-        model_config = {  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {
             "vault_url": "https://vault.tld",
             "vault_token": SecretStr("fake-token"),
         }
@@ -329,7 +330,7 @@ def test_log_warning_if_no_authentication_found(caplog: LogCaptureFixture) -> No
             },
         )
 
-        model_config = {"vault_url": "https://vault.tld"}  # type: ignore
+        model_config: ClassVar[SettingsConfigDict] = {"vault_url": "https://vault.tld"}
 
     VaultSettingsSource(Settings)()
 

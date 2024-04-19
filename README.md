@@ -8,9 +8,7 @@ pydantic-settings-vault
 A simple extension to [pydantic-settings][pydantic-basesettings] that can retrieve secrets stored in [Hashicorp Vault][vault].
 
 With pydantic-settings and pydantic-settings-vault, you can easily declare your configuration in a type-hinted class, and load configuration
-from environment variables or Vault secrets. pydantic-settings-vault will work the same when developing locally (where you probably
-login with the Vault CLI and your own user account) and when deploying in production (using a Vault Approle or Kubernetes
-authentication for example).
+from environment variables or Vault secrets. pydantic-settings-vault will work the same when developing locally and when deploying in production.
 
 <!-- toc -->
 
@@ -22,7 +20,7 @@ authentication for example).
   * [Authentication](#authentication)
     + [Approle](#approle)
     + [Kubernetes](#kubernetes)
-    + [Vault token](#vault-token)
+    + [Token](#token)
     + [JWT/OIDC](#jwtoidc)
   * [Order of priority](#order-of-priority)
 - [Logging](#logging)
@@ -54,8 +52,7 @@ pipenv install pydantic-settings-vault
 
 With `pydantic_settings.BaseSettings` class, you can easily "create a clearly-defined, type-hinted
 application configuration class" that gets its configuration from environment variables. It will work the same when
-developing locally (where you probably login with the Vault CLI and your own user account) and when deploying in
-production (using a Vault Approle, Kubernetes or JWT/OIDC authentication for example).
+developing locally and when deploying in production.
 
 You can create a normal `BaseSettings` class, and define the `settings_customise_sources()` method to load secrets from your Vault instance using the `VaultSettingsSource` class:
 
@@ -164,16 +161,16 @@ You can configure the behaviour of pydantic-settings-vault in your `Settings.mod
 | `vault_auth_mount_point`        | `str \| None`         | No       | `VAULT_AUTH_MOUNT_POINT` | The mount point of the authentication method, if different from its default mount point                                                                |
 | `vault_certificate_verify`      | `str \| bool \| None` | No       | `VAULT_CA_BUNDLE`        | The path to a CA bundle validating your Vault certificate, or `False` to disable verification (see [hvac docs][hvac-private-ca])                       |
 
-Environment variables override what has been defined in the `Config` class.
+Environment variables override what has been defined in the `Settings.model_config` dict.
 
 You can also configure everything available in the original Pydantic `BaseSettings` class.
 
 ### Authentication
 
 pydantic-settings-vault supports the following authentication method (in descending order of priority):
-  - [direct token authentication][vault-auth-token]
-  - [kubernetes][vault-auth-kubernetes]
   - [approle][vault-auth-approle]
+  - [kubernetes][vault-auth-kubernetes]
+  - [token][vault-auth-token]
   - [jwt/oidc][vault-auth-jwt-oidc]
 
 pydantic-settings-vault tries to be transparent and help you work, both during local development and in production. It will try to
@@ -297,7 +294,7 @@ class Settings(BaseSettings):
         )
 ```
 
-#### Vault token
+#### Token
 
 To authenticate using the [Token auth method][vault-auth-token], you need to pass a Vault token to your `Settings` class.
 
